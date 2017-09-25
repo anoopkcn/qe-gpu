@@ -6,8 +6,13 @@
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
 !
+#ifdef USE_GPU
+#define MY_ROUTINE(x)  x##_gpu
+#else
+#define MY_ROUTINE(x)  x##_cpu
+#endif
 !----------------------------------------------------------------------------
-SUBROUTINE rotate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, &
+SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
                              psi, overlap, evc, e )
   !----------------------------------------------------------------------------
   !
@@ -20,6 +25,10 @@ SUBROUTINE rotate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, &
   USE mp_bands,      ONLY : intra_bgrp_comm
   USE mp,            ONLY : mp_sum 
   USE cpu_gpu_interface
+#ifdef USE_GPU
+  USE cudafor
+  USE gpu_routines
+#endif
   !
   IMPLICIT NONE
   !
@@ -37,12 +46,18 @@ SUBROUTINE rotate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, &
     ! input and output eigenvectors (may overlap)
   REAL(DP) :: e(nbnd)
     ! eigenvalues
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: psi, evc, e
+#endif
   !
   ! ... auxiliary variables:
   !
   COMPLEX(DP), ALLOCATABLE :: aux(:,:)
   REAL(DP),    ALLOCATABLE :: hr(:,:), sr(:,:), vr(:,:), en(:)
   !
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: aux, hr, sr, vr, en
+#endif
   ALLOCATE( aux(  npwx, nstart ) )    
   ALLOCATE( hr( nstart, nstart ) )    
   ALLOCATE( sr( nstart, nstart ) )    
@@ -110,7 +125,7 @@ SUBROUTINE rotate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, &
   !
   RETURN
   !
-END SUBROUTINE rotate_wfc_gamma
+END SUBROUTINE MY_ROUTINE( rotate_wfc_gamma)
 !
 !
 !----------------------------------------------------------------------------
