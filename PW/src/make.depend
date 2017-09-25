@@ -1563,6 +1563,7 @@ rcgdiagg.o : ../../Modules/kind.o
 rcgdiagg.o : ../../Modules/mp.o
 rcgdiagg.o : ../../Modules/mp_bands.o
 rcgdiagg.o : ../../Modules/recvec.o
+rcgdiagg.o : cpu_gpu_interface.o
 rdiagh.o : ../../Modules/kind.o
 rdiagh.o : ../../Modules/mp.o
 rdiagh.o : ../../Modules/mp_bands.o
