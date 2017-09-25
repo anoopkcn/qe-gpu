@@ -189,6 +189,27 @@ MODULE cpu_gpu_interface
 #endif
    END INTERFACE
 
+   INTERFACE rotate_wfc_gamma
+       SUBROUTINE rotate_wfc_gamma_cpu( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc, e )
+          USE kinds,            ONLY : DP
+          INTEGER :: npw, npwx, nstart, nbnd, gstart
+          LOGICAL :: overlap
+          COMPLEX(DP) :: psi(:,:), evc(:,:)
+          REAL(DP) :: e(nbnd)
+       END SUBROUTINE rotate_wfc_gamma_cpu
+
+#ifdef USE_CUDA
+       SUBROUTINE rotate_wfc_gamma_gpu( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc, e )
+          USE kinds,            ONLY : DP
+          INTEGER :: npw, npwx, nstart, nbnd, gstart
+          LOGICAL :: overlap
+          COMPLEX(DP) :: psi(:,:), evc(:,:)
+          REAL(DP) :: e(nbnd)
+          ATTRIBUTES( DEVICE ) :: psi, evc, e
+       END SUBROUTINE rotate_wfc_gamma_gpu
+#endif
+   END INTERFACE
+
    INTERFACE rotate_wfc
       SUBROUTINE rotate_wfc_cpu( npwx, npw, nstart, gstart, nbnd, psi, npol, overlap, evc, e )
          USE kinds,            ONLY : DP
