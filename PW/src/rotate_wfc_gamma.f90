@@ -34,7 +34,7 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   !
   ! ... I/O variables
   !
-  INTEGER :: npw, npwx, nstart, nbnd, gstart, ibnd
+  INTEGER :: npw, npwx, nstart, nbnd, gstart, ibnd, i, j, istat
     ! dimension of the matrix to be diagonalized
     ! leading dimension of matrix psi, as declared in the calling pgm unit
     ! input number of states
@@ -75,11 +75,21 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   !
   CALL h_psi( npwx, npw, nstart, psi, aux )
   !
+#ifdef USE_GPU
+  istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, hr, nstart )
+#else
   CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, hr, nstart )
+#endif  
   !  
-  IF ( gstart == 2 ) &
+  IF ( gstart == 2 ) THEN
+#ifdef USE_GPU
+  istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, aux, &
+                2 * npwx, hr, nstart )
+#else
      call DGER( nstart, nstart, -1.D0, psi, 2 * npwx, aux, &
                 2 * npwx, hr, nstart )
+#endif
+  END IF
   !     
   CALL mp_sum(  hr , intra_bgrp_comm )
   !     
@@ -87,19 +97,39 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
      ! 
      CALL s_psi( npwx, npw, nstart, psi, aux )
      !
+#ifdef USE_GPU
+     istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, sr, nstart )
+#else
      CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, sr, nstart )
+#endif
      !            
-     IF ( gstart == 2 ) &
+     IF ( gstart == 2 ) THEN
+#ifdef USE_GPU
+        istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, &
+                   aux, 2 * npwx, sr, nstart )
+#else
         CALL DGER( nstart, nstart, -1.D0, psi, 2 * npwx, &
                    aux, 2 * npwx, sr, nstart )
+#endif
+     END IF
      !              
   ELSE
      !
+#ifdef USE_GPU
+     istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0, psi,  2 * npwx, psi, 2 * npwx, 0.D0, sr, nstart )
+#else
      CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0, psi,  2 * npwx, psi, 2 * npwx, 0.D0, sr, nstart )
+#endif
      !
-     IF ( gstart == 2 ) &
+     IF ( gstart == 2 ) THEN
+#ifdef USE_GPU
+        istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, &
+                   psi, 2 * npwx, sr, nstart )
+#else
         CALL DGER( nstart, nstart, -1.D0, psi, 2 * npwx, &
                    psi, 2 * npwx, sr, nstart )
+#endif
+     END IF
      !
   END IF
   !
@@ -107,15 +137,34 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   !
   ! ... Diagonalize
   !
+  ! FIXME ===========================================
   CALL rdiaghg( nstart, nbnd, hr, sr, nstart, en, vr )
   !
-  e(:) = en(1:nbnd)
+#ifdef USE_GPU
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+  DO i=1,nbnd
+    e(i) = en(i)
+  END DO
+  ! e(:) = en(1:nbnd)
   !
   ! ... update the basis set
   !
+#ifdef USE_GPU
+  istat = cublasDdemm( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 2 * npw, nbnd, nstart, 1.D0, psi, 2 * npwx,  vr, nstart, 0.D0, aux, 2 * npwx )
+#else
   CALL DGEMM( 'N', 'N', 2 * npw, nbnd, nstart, 1.D0, psi, 2 * npwx,  vr, nstart, 0.D0, aux, 2 * npwx )
+END IF
   !   
-  evc(:,:) = aux(:,1:nbnd)
+  ! evc(:,:) = aux(:,1:nbnd)
+#ifdef USE_GPU
+!$cuf kernel do(1) <<<*,*>>>
+#endif
+  DO i=1, nbnd
+     DO j=1,npwx
+       evc(j,i) = aux(j,i)
+     END DO
+  END DO
   !
   DEALLOCATE( en )
   DEALLOCATE( vr )
