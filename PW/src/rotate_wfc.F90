@@ -78,14 +78,10 @@ SUBROUTINE MY_ROUTINE( rotate_wfc ) &
      ! use serial subroutines
      !
      IF ( gamma_only ) THEN
-#ifndef USE_GPU
         !
         CALL rotate_wfc_gamma &
             ( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc, e )
         !
-#else
-        print *,"GAMMA ONLY NOT IMLEMENTED!!!"; call flush(6); STOP
-#endif
      ELSE
         !
         CALL rotate_wfc_k &
