@@ -298,7 +298,14 @@ CONTAINS
     !
     ! ... Diagonalization of a real Hamiltonian
     !
+#ifdef USE_CUDA
+#ifdef USE_NVTX
+    use nvtx
+#endif
+#endif
     IMPLICIT NONE
+    !
+    INTEGER :: i 
     !
     IF ( isolve == 1 ) THEN
        !
@@ -306,11 +313,24 @@ CONTAINS
        !
        ! ... h_diag is the precondition matrix
        !
-       FORALL( ig = 1 : npw )
+#ifdef USE_CUDA
+!$cuf kernel do(1) <<<*,*>>>
+      DO i = 1, npwx
+          h_diag_d(i,1) = 1.D0 + g2kin_d(i) + SQRT( 1.D0 + ( g2kin_d(i) - 1.D0 )**2 )
+      END DO 
+      !
+      h_diag = h_diag_d  !REMOVE THIS COPY
+      !
+#else
+       h_diag = 1.D0
+       !
+       FORALL( ig = 1 : npwx )
           !
           h_diag(ig,1) = 1.D0 + g2kin(ig) + SQRT( 1.D0 + ( g2kin(ig) - 1.D0 )**2 )
           !
        END FORALL
+       !
+#endif
        !
        ntry = 0
        !
@@ -320,14 +340,27 @@ CONTAINS
           !
           IF ( .NOT. lrot ) THEN
              !
+#ifdef USE_CUDA
+             et_d(:,ik)=et(:,ik)
+             CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc_d, npol, okvan, evc_d, et_d(1,ik) )
+             !
+             ! evc = evc_d
+             ! et(:,ik) = et_d(:,ik)
+             !
+#else
              CALL rotate_wfc ( npwx, npw, nbnd, gstart, nbnd, evc, npol, okvan, evc, et(1,ik) )
+#endif
              !
              avg_iter = avg_iter + 1.D0
              !
           END IF
           !
+          evc = evc_d
+          et(:,ik) = et_d(:,ik)
           CALL rcgdiagg( npwx, npw, nbnd, evc, et(1,ik), btype(1,ik), &
                h_diag, ethr, max_cg_iter, .NOT. lscf, notconv, cg_iter )
+          evc_d = evc
+          et_d(:,ik) = et(:,ik)
           !
           avg_iter = avg_iter + cg_iter
           !
