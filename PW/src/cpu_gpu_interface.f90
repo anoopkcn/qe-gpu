@@ -197,7 +197,6 @@ MODULE cpu_gpu_interface
           COMPLEX(DP) :: psi(:,:), evc(:,:)
           REAL(DP) :: e(nbnd)
        END SUBROUTINE rotate_wfc_gamma_cpu
-
 #ifdef USE_CUDA
        SUBROUTINE rotate_wfc_gamma_gpu( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc, e )
           USE kinds,            ONLY : DP
