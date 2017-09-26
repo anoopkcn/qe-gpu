@@ -30,6 +30,25 @@ MODULE cpu_gpu_interface
 #endif
   END INTERFACE
 
+  INTERFACE vloc_psi_gamma
+     SUBROUTINE vloc_psi_gamma_cpu( lda, n, m, psi, v, hpsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+        COMPLEX(DP) :: psi(:,:), hpsi(:,:)
+        REAL(DP) :: v(:)
+     END SUBROUTINE vloc_psi_gamma_cpu
+
+#ifdef USE_CUDA
+     SUBROUTINE vloc_psi_gamma_gpu( lda, n, m, psi, v, hpsi  )
+        USE kinds, ONLY: DP
+        INTEGER  :: lda, n, m
+        COMPLEX(DP) :: psi(:,:), hpsi(:,:)
+        REAL(DP) :: v(:)
+        ATTRIBUTES( DEVICE ) :: psi, v, hpsi
+     END SUBROUTINE vloc_psi_gamma_gpu
+#endif
+  END INTERFACE
+
   INTERFACE vloc_psi_k
      SUBROUTINE vloc_psi_k_cpu( lda, n, m, psi, v, hpsi  )
         USE kinds, ONLY: DP
