@@ -140,8 +140,8 @@ SUBROUTINE MY_ROUTINE(h_psi_)( lda, n, m, psi, hpsi )
   !
   IF ( gamma_only ) THEN
      ! 
-#ifndef USE_GPU
      IF ( real_space .and. nkb > 0  ) then 
+#ifndef USE_GPU
         !
         ! ... real-space algorithm
         ! ... fixme: real_space without beta functions does not make sense
@@ -166,14 +166,14 @@ SUBROUTINE MY_ROUTINE(h_psi_)( lda, n, m, psi, hpsi )
            CALL fwfft_orbital_gamma(hpsi,ibnd,m) 
         END DO
         !
+#else
+     print *,"REAL-SPACE NOT IMPLEMENTED!"; call flush(6); STOP
+#endif 
      ELSE
         ! ... usual reciprocal-space algorithm
         CALL vloc_psi_gamma ( lda, n, m, psi, vrs(1,current_spin), hpsi ) 
         !
      ENDIF
-#else
-     print *,"GAMMA_ONLY NOT IMPLEMENTED!"; call flush(6); STOP
-#endif 
      !
   ELSE IF ( noncolin ) THEN 
      !
