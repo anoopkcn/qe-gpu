@@ -11,6 +11,23 @@
 #else
 #define MY_ROUTINE(x)  x##_cpu
 #endif
+! for calling cublasdger()
+#ifdef USE_GPU
+  SUBROUTINE cu_dger(m, n, alpha, x, incx, y, incy, A, lda)
+    USE kinds, ONLY : DP
+    USE cudafor
+    USE cublas
+    IMPLICIT NONE
+    !
+    INTEGER, INTENT(IN) :: m, n, incx, incy, lda
+    REAL(DP), INTENT(IN) :: alpha
+    REAL(DP), DEVICE, INTENT(IN) :: x(incx,m), y(incx,m)
+    REAL(DP), DEVICE, INTENT(OUT) :: A(m,n)
+    call cublasDger( m, n, alpha, x, incx, y, incy, A, lda )
+    !
+    RETURN
+  END SUBROUTINE cu_dger
+#endif
 !----------------------------------------------------------------------------
 SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
                              psi, overlap, evc, e )
@@ -54,15 +71,16 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   !
   COMPLEX(DP), ALLOCATABLE :: aux(:,:)
   REAL(DP),    ALLOCATABLE :: hr(:,:), sr(:,:), vr(:,:), en(:)
+  REAL(DP),    ALLOCATABLE :: hr_h(:,:), sr_h(:,:), vr_h(:,:), en_h(:)
   !
 #ifdef USE_GPU
   ATTRIBUTES( DEVICE ) :: aux, hr, sr, vr, en
 #endif
   ALLOCATE( aux(  npwx, nstart ) )    
-  ALLOCATE( hr( nstart, nstart ) )    
-  ALLOCATE( sr( nstart, nstart ) )    
-  ALLOCATE( vr( nstart, nstart ) )    
-  ALLOCATE( en( nstart ) )
+  ALLOCATE( hr( nstart, nstart ), hr_h( nstart, nstart ))    
+  ALLOCATE( sr( nstart, nstart ), sr_h( nstart, nstart ) )    
+  ALLOCATE( vr( nstart, nstart ), vr_h( nstart, nstart  ) )  
+  ALLOCATE( en( nstart ), en_h( nstart ) )
   !
   ! ... Set up the Hamiltonian and Overlap matrix on the subspace :
   !
@@ -76,14 +94,14 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   CALL h_psi( npwx, npw, nstart, psi, aux )
   !
 #ifdef USE_GPU
-  istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, hr, nstart )
+  istat = cublasDgemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, hr, nstart )
 #else
   CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, hr, nstart )
 #endif  
   !  
   IF ( gstart == 2 ) THEN
 #ifdef USE_GPU
-  istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, aux, &
+     call cu_dger( nstart, nstart, -1.D0, psi, 2 * npwx, aux, &
                 2 * npwx, hr, nstart )
 #else
      call DGER( nstart, nstart, -1.D0, psi, 2 * npwx, aux, &
@@ -98,14 +116,14 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
      CALL s_psi( npwx, npw, nstart, psi, aux )
      !
 #ifdef USE_GPU
-     istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, sr, nstart )
+     istat = cublasDgemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, sr, nstart )
 #else
      CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0 , psi,  2 * npwx, aux, 2 * npwx, 0.D0, sr, nstart )
 #endif
      !            
      IF ( gstart == 2 ) THEN
 #ifdef USE_GPU
-        istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, &
+        CALL cu_dger( nstart, nstart, -1.D0, psi, 2 * npwx, &
                    aux, 2 * npwx, sr, nstart )
 #else
         CALL DGER( nstart, nstart, -1.D0, psi, 2 * npwx, &
@@ -116,14 +134,14 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   ELSE
      !
 #ifdef USE_GPU
-     istat = cublasDdemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0, psi,  2 * npwx, psi, 2 * npwx, 0.D0, sr, nstart )
+     istat = cublasDgemm( cublasH, CUBLAS_OP_C, CUBLAS_OP_N, nstart, nstart, 2 * npw, 2.D0, psi,  2 * npwx, psi, 2 * npwx, 0.D0, sr, nstart )
 #else
      CALL DGEMM( 'T', 'N', nstart, nstart, 2 * npw, 2.D0, psi,  2 * npwx, psi, 2 * npwx, 0.D0, sr, nstart )
 #endif
      !
      IF ( gstart == 2 ) THEN
 #ifdef USE_GPU
-        istat = cublasDger( cublasH, nstart, nstart, -1.D0, psi, 2 * npwx, &
+        CALL cu_dger( nstart, nstart, -1.D0, psi, 2 * npwx, &
                    psi, 2 * npwx, sr, nstart )
 #else
         CALL DGER( nstart, nstart, -1.D0, psi, 2 * npwx, &
@@ -138,7 +156,16 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   ! ... Diagonalize
   !
   ! FIXME ===========================================
+  hr_h = hr
+  sr_h = sr 
+  en_h = en 
+  vr_h = vr
   CALL rdiaghg( nstart, nbnd, hr, sr, nstart, en, vr )
+  hr = hr_h
+  sr = sr_h 
+  en = en_h 
+  vr = vr_h
+  ! ===========================================
   !
 #ifdef USE_GPU
 !$cuf kernel do(1) <<<*,*>>>
@@ -151,10 +178,10 @@ SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )( npwx, npw, nstart, gstart, nbnd, &
   ! ... update the basis set
   !
 #ifdef USE_GPU
-  istat = cublasDdemm( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 2 * npw, nbnd, nstart, 1.D0, psi, 2 * npwx,  vr, nstart, 0.D0, aux, 2 * npwx )
+  istat = cublasDgemm( cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 2 * npw, nbnd, nstart, 1.D0, psi, 2 * npwx,  vr, nstart, 0.D0, aux, 2 * npwx )
 #else
   CALL DGEMM( 'N', 'N', 2 * npw, nbnd, nstart, 1.D0, psi, 2 * npwx,  vr, nstart, 0.D0, aux, 2 * npwx )
-END IF
+#endif
   !   
   ! evc(:,:) = aux(:,1:nbnd)
 #ifdef USE_GPU
@@ -166,17 +193,18 @@ END IF
      END DO
   END DO
   !
-  DEALLOCATE( en )
-  DEALLOCATE( vr )
-  DEALLOCATE( sr )
-  DEALLOCATE( hr )
+  DEALLOCATE( en, en_h )
+  DEALLOCATE( vr, vr_h )
+  DEALLOCATE( sr, sr_h )
+  DEALLOCATE( hr, hr_h )
   DEALLOCATE( aux )
   !
   RETURN
   !
-END SUBROUTINE MY_ROUTINE( rotate_wfc_gamma)
+END SUBROUTINE MY_ROUTINE( rotate_wfc_gamma )
 !
 !
+#ifndef USE_GPU
 !----------------------------------------------------------------------------
 SUBROUTINE protate_wfc_gamma( npwx, npw, nstart, gstart, nbnd, psi, overlap, evc, e )
   !----------------------------------------------------------------------------
@@ -428,3 +456,4 @@ CONTAINS
   END SUBROUTINE refresh_evc
   !
 END SUBROUTINE protate_wfc_gamma
+#endif
