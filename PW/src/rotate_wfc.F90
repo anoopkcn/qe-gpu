@@ -25,7 +25,7 @@ SUBROUTINE MY_ROUTINE( rotate_wfc ) &
   !
   USE kinds,         ONLY : DP
   USE control_flags, ONLY : use_para_diag, gamma_only
-  USE cpu_gpu_interface, ONLY : rotate_wfc_k
+  USE cpu_gpu_interface, ONLY : rotate_wfc_k, rotate_wfc_gamma
 #ifdef USE_GPU
   USE cudafor
 #endif
