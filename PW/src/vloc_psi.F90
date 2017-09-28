@@ -12,21 +12,26 @@
 #define MY_ROUTINE(x)  x##_cpu
 #endif
 
-#ifndef USE_GPU
 !-----------------------------------------------------------------------
-SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
+SUBROUTINE MY_ROUTINE( vloc_psi_gamma )(lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
   !
   ! Calculation of Vloc*psi using dual-space technique - Gamma point
   !
   USE parallel_include
   USE kinds,   ONLY : DP
-  USE gvecs, ONLY : nls, nlsm
   USE mp_bands,      ONLY : me_bgrp
   USE fft_base,      ONLY : dffts, dtgs
   USE fft_parallel,  ONLY : tg_gather
   USE fft_interfaces,ONLY : fwfft, invfft
+#ifdef USE_GPU
+  USE cudafor
+  USE gvecs, ONLY : nls=>nls_d, nlsm
+  USE wavefunctions_module,  ONLY: psic=>psic_d
+#else
+  USE gvecs, ONLY : nls, nlsm
   USE wavefunctions_module,  ONLY: psic
+#endif
   !
   IMPLICIT NONE
   !
@@ -35,7 +40,11 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   COMPLEX(DP), INTENT(inout):: hpsi (lda, m)
   REAL(DP), INTENT(in) :: v(dffts%nnr)
   !
-  INTEGER :: ibnd, j, incr
+#ifdef USE_GPU
+  ATTRIBUTES( DEVICE ) :: psi, hpsi, v
+#endif
+  !
+  INTEGER :: ibnd, j, incr, currsize
   COMPLEX(DP) :: fp, fm
   !
   LOGICAL :: use_tg
@@ -50,6 +59,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   use_tg = dtgs%have_task_groups 
   !
   IF( use_tg ) THEN
+#ifndef USE_GPU
      !
      CALL start_clock ('vloc_psi:tg_gather')
      v_siz =  dtgs%tg_nnr * dtgs%nogrp
@@ -62,6 +72,9 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
      !
      incr = 2 * dtgs%nogrp
      !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif   
   ENDIF
   !
   ! the local potential V_Loc psi. First bring psi to real space
@@ -69,6 +82,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   DO ibnd = 1, m, incr
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
         tg_psic = (0.d0, 0.d0)
         ioff   = 0
@@ -92,18 +106,21 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
 
         ENDDO
         !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif
      ELSE
         !
         psic(:) = (0.d0, 0.d0)
         IF (ibnd < m) THEN
            ! two ffts at the same time
            DO j = 1, n
-              psic(nls (j))=      psi(j,ibnd) + (0.0d0,1.d0)*psi(j,ibnd+1)
+              psic(nls_d(j))= psi(j,ibnd) + (0.0d0,1.d0)*psi(j,ibnd+1)
               psic(nlsm(j))=conjg(psi(j,ibnd) - (0.0d0,1.d0)*psi(j,ibnd+1))
            ENDDO
         ELSE
            DO j = 1, n
-              psic (nls (j)) =       psi(j, ibnd)
+              psic (nls (j)) = psi(j, ibnd)
               psic (nlsm(j)) = conjg(psi(j, ibnd))
            ENDDO
         ENDIF
@@ -115,6 +132,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
      !   back to reciprocal space
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
         CALL invfft ('Wave', tg_psic, dffts, dtgs)
         !
@@ -124,6 +142,9 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
         !
         CALL fwfft ('Wave', tg_psic, dffts, dtgs)
         !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif
      ELSE
         !
         CALL invfft ('Wave', psic, dffts)
@@ -139,6 +160,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
      !   addition to the total product
      !
      IF( use_tg ) THEN
+#ifndef USE_GPU
         !
         ioff   = 0
         !
@@ -155,7 +177,7 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
                  hpsi (j, ibnd+idx  ) = hpsi (j, ibnd+idx  ) + &
                                         cmplx(aimag(fp),- dble(fm),kind=DP)
               ENDDO
-           ELSEIF( idx + ibnd - 1 == m ) THEN
+           ELSE IF( idx + ibnd - 1 == m ) THEN
               DO j = 1, n
                  hpsi (j, ibnd+idx-1) = hpsi (j, ibnd+idx-1) + &
                                          tg_psic( nls(j) + ioff )
@@ -166,6 +188,9 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
            !
         ENDDO
         !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif
      ELSE
         IF (ibnd < m) THEN
            ! two ffts at the same time
@@ -187,17 +212,20 @@ SUBROUTINE vloc_psi_gamma(lda, n, m, psi, v, hpsi)
   ENDDO
   !
   IF( use_tg ) THEN
+#ifndef USE_GPU
      !
      DEALLOCATE( tg_psic )
      DEALLOCATE( tg_v )
      !
+#else
+     print *,"USE_TG not implemented!!!"; call flush(6); STOP
+#endif
   ENDIF
   CALL stop_clock ('vloc_psi')
   !
   RETURN
-END SUBROUTINE vloc_psi_gamma
+END SUBROUTINE MY_ROUTINE( vloc_psi_gamma )
 !
-#endif
 !-----------------------------------------------------------------------
 SUBROUTINE MY_ROUTINE(vloc_psi_k)(lda, n, m, psi, v, hpsi)
   !-----------------------------------------------------------------------
