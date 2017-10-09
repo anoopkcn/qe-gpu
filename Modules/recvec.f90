@@ -35,12 +35,13 @@
 
      INTEGER, ALLOCATABLE :: nl(:), nlm(:)
 #ifdef USE_CUDA
-     attributes(pinned) :: nl
-     INTEGER, DEVICE, ALLOCATABLE :: nl_d(:)
+     attributes(pinned) :: nl, nlm
+     INTEGER, DEVICE, ALLOCATABLE :: nl_d(:), nlm_d(:)
      REAL(DP), DEVICE, ALLOCATABLE, TARGET :: gg_d(:)
      REAL(DP), DEVICE, ALLOCATABLE, TARGET :: g_d(:,:)
      INTEGER, DEVICE, ALLOCATABLE, TARGET :: mill_d(:,:)
      COMPLEX(DP), DEVICE, ALLOCATABLE :: eigts1_d(:,:), eigts2_d(:,:), eigts3_d(:,:)
+     INTEGER, DEVICE :: ngm_d
 #endif
      INTEGER :: gstart = 2 ! index of the first G vector whose module is > 0
                            ! Needed in parallel execution: gstart=2 for the
@@ -194,8 +195,9 @@
 
      INTEGER, ALLOCATABLE :: nls(:), nlsm(:)
 #ifdef USE_CUDA
-     attributes(pinned) :: nls
-     INTEGER, DEVICE, ALLOCATABLE :: nls_d(:) !, nlsm_d(:)
+     attributes(pinned) :: nls, nlsm
+     INTEGER, DEVICE, ALLOCATABLE :: nls_d(:) , nlsm_d(:)
+     INTEGER, DEVICE :: ngms_d
 #endif
 
      REAL(DP) :: ecuts = 0.0_DP   ! energy cut-off = 4*ecutwfc
@@ -231,6 +233,7 @@
        ALLOCATE( nlsm(ngms) )
 #ifdef USE_CUDA
        ALLOCATE( nls_d, source=nls )
+       ALLOCATE( nlsm_d, source=nlsm )
 #endif
        !
        RETURN 
@@ -242,6 +245,7 @@
        IF( ALLOCATED( nlsm ) ) DEALLOCATE( nlsm )
 #ifdef USE_CUDA
        IF( ALLOCATED( nls_d ) ) DEALLOCATE( nls_d )
+       IF( ALLOCATED( nlsm_d ) ) DEALLOCATE( nlsm_d )
 #endif
 
      END SUBROUTINE deallocate_gvecs
