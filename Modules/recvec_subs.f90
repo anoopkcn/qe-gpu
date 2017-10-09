@@ -18,8 +18,8 @@ MODULE recvec_subs
                                   mill,  nl, gstart
    USE gvecs,              ONLY : ngms, gcutms, ngms_g, nls
 #ifdef USE_CUDA
-   USE gvect,              ONLY : nl_d, g_d, gg_d, mill_d
-   USE gvecs,              ONLY : nls_d
+   USE gvect,              ONLY : nl_d, g_d, gg_d, mill_d, nlm_d, ngm_d
+   USE gvecs,              ONLY : nls_d, nlsm_d, ngms_d
 #endif
    USE fft_base,           ONLY : dfftp, dffts
 !
@@ -354,7 +354,14 @@ CONTAINS
          nlsm(ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s-1) * dffts%nr1x * dffts%nr2x
 #endif
    ENDDO
-
+   !
+#ifdef USE_CUDA
+   ngm_d = ngm
+   nlm_d = nlm
+   mill_d = mill
+   nlsm_d = nlsm
+   ngms_d = ngms
+#endif
    END SUBROUTINE index_minusg
    !
 !=----------------------------------------------------------------------=
