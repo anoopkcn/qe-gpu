@@ -26,7 +26,7 @@ SUBROUTINE MY_ROUTINE( vloc_psi_gamma )(lda, n, m, psi, v, hpsi)
   USE fft_interfaces,ONLY : fwfft, invfft
 #ifdef USE_GPU
   USE cudafor
-  USE gvecs, ONLY : nls=>nls_d, nlsm
+  USE gvecs, ONLY: nls=>nls_d, nlsm=>nlsm_d
   USE wavefunctions_module,  ONLY: psic=>psic_d
 #else
   USE gvecs, ONLY : nls, nlsm
@@ -115,7 +115,7 @@ SUBROUTINE MY_ROUTINE( vloc_psi_gamma )(lda, n, m, psi, v, hpsi)
         IF (ibnd < m) THEN
            ! two ffts at the same time
            DO j = 1, n
-              psic(nls_d(j))= psi(j,ibnd) + (0.0d0,1.d0)*psi(j,ibnd+1)
+              psic(nls(j))= psi(j,ibnd) + (0.0d0,1.d0)*psi(j,ibnd+1)
               psic(nlsm(j))=conjg(psi(j,ibnd) - (0.0d0,1.d0)*psi(j,ibnd+1))
            ENDDO
         ELSE
